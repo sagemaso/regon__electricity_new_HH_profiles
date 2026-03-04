@@ -1,3 +1,4 @@
+
 """
 Analyze employment status distribution by household type using German census data.
 
@@ -5,9 +6,13 @@ Data sources:
     - 2000S-2005_de.csv: Persons by household type and employment status
     - 5000H-1004_de.csv: Households by senior status
 """
+from pathlib import Path
+
 import pandas as pd
 
 from census_io import read_census_csv
+
+SCRIPT_DIR = Path(__file__).parent
 from german_number_utils import parse_german_int, parse_german_float
 from text_utils import normalize_label
 
@@ -15,7 +20,7 @@ from text_utils import normalize_label
 def load_persons_by_household_and_employment() -> pd.DataFrame:
     """Load persons data: household type x employment status."""
     return read_census_csv(
-        "2000S-2005_de.csv",
+        SCRIPT_DIR / "2000S-2005_de.csv",
         skiprows=6,
         column_names=["date", "household_type", "employment_status", "count", "flag"]
     )
@@ -24,7 +29,7 @@ def load_persons_by_household_and_employment() -> pd.DataFrame:
 def load_households_by_senior_status() -> pd.DataFrame:
     """Load households data: by senior status."""
     return read_census_csv(
-        "5000H-1004_de.csv",
+        SCRIPT_DIR / "5000H-1004_de.csv",
         skiprows=6,
         column_names=["date", "senior_status", "count", "count_flag", "percent", "percent_flag"]
     )
@@ -141,6 +146,17 @@ def main():
 
     print("\n=== Total Persons by Household Type ===")
     print(pivot["total_persons"].astype("Int64").to_string())
+
+    return pivot, pivot_pct
+
+
+def get_employment_pivot() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Compute and return employment pivot tables.
+
+    Returns:
+        tuple: (pivot, pivot_pct) DataFrames
+    """
+    return main()
 
 
 if __name__ == "__main__":
