@@ -1,17 +1,7 @@
 import pandas as pd
 from pylpg import lpg_execution, lpgdata
 import numpy as np
-from pathlib import Path
-import zlib
 
-OUT_DIR = Path("generated_profiles")
-OUT_DIR.mkdir(exist_ok=True)
-(OUT_DIR / "sfh").mkdir(exist_ok=True)
-(OUT_DIR / "mfh").mkdir(exist_ok=True)
-
-def stable_seed_from_name(name: str) -> int:
-    """Create a stable (reproducible) integer seed from a string."""
-    return zlib.crc32(name.encode("utf-8")) & 0xffffffff  # 0..2^32-1
 
 def get_all_household_types():
     """Alle Household-Typen als Strings auslesen."""
@@ -22,7 +12,11 @@ def get_all_household_types():
     ]
 
 
-mapping = pd.read_csv("household_type_matching_census22_filled.csv", index_col="lpg_class")
+mapping = pd.read_csv("n_profiles_reweighted_999.csv", index_col="lpg_class")
+PROFILE_COL = "n_profiles_new"
+SIM_YEAR = 2022
+STARTDATE = "2022-01-01"
+ENDDATE = "2022-12-31"
 
 
 def get_household_by_name(name: str):
@@ -48,33 +42,33 @@ def get_household_by_name(name: str):
 
 def run():
     results = pd.DataFrame()
-    for householddata_name in mapping[mapping.n_profiles > 0].index:
+    for householddata_name in mapping[mapping[PROFILE_COL] > 0].index:
         print(householddata_name)
 
-        for n_profile in range(mapping.loc[householddata_name, "n_profiles"]):
+        for n_profile in range(mapping.loc[householddata_name, [PROFILE_COL]]):
             random_seed = np.random.randint(0, 100000)
             df = lpg_execution.execute_lpg_single_household(
-                2011,
+                SIM_YEAR,
                 get_household_by_name(householddata_name),
                 lpgdata.HouseTypes.HT20_Single_Family_House_no_heating_cooling,
                 resolution="01:00:00",
                 random_seed=random_seed,
-                startdate="2011-01-01",
-                enddate="2011-12-31"
+                startdate=STARTDATE,
+                enddate=ENDDATE
             )
             results[householddata_name + "_sfh_seed_" + str(random_seed)] = df["Electricity_HH1"].resample(
                 "15min").sum()
 
-        for n_profile in range(mapping.loc[householddata_name, "n_profiles"]):
+        for n_profile in range(mapping.loc[householddata_name, [PROFILE_COL]]):
             random_seed = np.random.randint(0, 100000)
             df = lpg_execution.execute_lpg_single_household(
-                2011,
+                SIM_YEAR,
                 get_household_by_name(householddata_name),
                 lpgdata.HouseTypes.HT22_Big_Multifamily_House_no_heating_cooling,
                 resolution="01:00:00",
                 random_seed=random_seed,
-                startdate="2011-01-01",
-                enddate="2011-12-31"
+                startdate=STARTDATE,
+                enddate=ENDDATE
             )
             results[householddata_name + "_mfh_seed_" + str(random_seed)] = df["Electricity_HH1"].resample(
                 "15min").sum()
@@ -85,64 +79,53 @@ def run():
 
 
 def run_sfh():
-    for householddata_name in mapping[mapping.n_profiles > 0].index:
-        n_profiles = int(mapping.loc[householddata_name, "n_profiles"])
-        n_profiles = min(n_profiles, 3)
-        print(f"{householddata_name} -> {n_profiles} profiles (SFH)")
+    results = pd.DataFrame()
+    for householddata_name in mapping[mapping[PROFILE_COL] > 0].index:
+        print(householddata_name)
 
-        # Reproducible RNG per household type
-        rng = np.random.default_rng(stable_seed_from_name(householddata_name))
-
-        for _ in range(n_profiles):
-            random_seed = int(rng.integers(0, 100000))
-
+        for n_profile in range(mapping.loc[householddata_name, [PROFILE_COL]]):
+            random_seed = np.random.randint(0, 100000)
             df = lpg_execution.execute_lpg_single_household(
-                2011,
+                SIM_YEAR,
                 get_household_by_name(householddata_name),
                 lpgdata.HouseTypes.HT20_Single_Family_House_no_heating_cooling,
                 resolution="01:00:00",
                 random_seed=random_seed,
-                startdate="2011-01-01",
-                enddate="2011-12-31"
+                startdate=STARTDATE,
+                enddate=ENDDATE
             )
-            print("DEBUG len(df):", len(df))
-            print("DEBUG first timestamps:", df.index[:5])
-            print("DEBUG last timestamps:", df.index[-5:])
-            print("DEBUG inferred step:", df.index.to_series().diff().dropna().mode().iloc[0])
-            series_15min = df["Electricity_HH1"].resample("15min").sum()
+            # results[householddata_name + "_sfh_seed_" + str(random_seed)] = df["Electricity_HH1"].resample("15min").sum()
+            df["Electricity_HH1"].resample("15min").sum().to_csv(
+                f"resulting_profiles_{householddata_name}_sfh_seed_{str(random_seed)}_all.csv")
 
-            out_path = OUT_DIR / "sfh" / f"{householddata_name}_sfh_seed_{random_seed}.csv"
-            series_15min.to_csv(out_path)
+    # results.to_csv("resulting_profiles_sfh_all.csv")
+
+    return results
 
 
 def run_mfh():
-    for householddata_name in mapping[mapping.n_profiles > 0].index:
-        n_profiles = int(mapping.loc[householddata_name, "n_profiles"])
-        print(f"{householddata_name} -> {n_profiles} profiles (MFH)")
+    results = pd.DataFrame()
+    for householddata_name in mapping[mapping[PROFILE_COL] > 0].index:
+        print(householddata_name)
 
-        # Reproducible RNG per household type
-        rng = np.random.default_rng(stable_seed_from_name(householddata_name))
-
-        for _ in range(n_profiles):
-            random_seed = int(rng.integers(0, 100000))
-
+        for n_profile in range(mapping.loc[householddata_name, [PROFILE_COL]]):
+            random_seed = np.random.randint(0, 100000)
             df = lpg_execution.execute_lpg_single_household(
-                2011,
+                SIM_YEAR,
                 get_household_by_name(householddata_name),
                 lpgdata.HouseTypes.HT22_Big_Multifamily_House_no_heating_cooling,
                 resolution="01:00:00",
                 random_seed=random_seed,
-                startdate="2011-01-01",
-                enddate="2011-12-31"
+                startdate=STARTDATE,
+                enddate=ENDDATE
             )
-            print("DEBUG len(df):", len(df))
-            print("DEBUG first timestamps:", df.index[:5])
-            print("DEBUG last timestamps:", df.index[-5:])
-            print("DEBUG inferred step:", df.index.to_series().diff().dropna().mode().iloc[0])
-            series_15min = df["Electricity_HH1"].resample("15min").sum()
+            # results[householddata_name + "_mfh_seed_" + str(random_seed)] = df["Electricity_HH1"].resample("15min").sum()
+            df["Electricity_HH1"].resample("15min").sum().to_csv(
+                f"resulting_profiles_{householddata_name}_mfh_seed_{str(random_seed)}_all.csv")
 
-            out_path = OUT_DIR / "mfh" / f"{householddata_name}_mfh_seed_{random_seed}.csv"
-            series_15min.to_csv(out_path)
+    # results.to_csv("resulting_profiles_mfh_all.csv")
+
+    return results
 
 
 def analyze():
@@ -161,5 +144,5 @@ def analyze():
 
     results.sum(axis=1).resample("1h").sum()[168:2 * 168].plot(linestyle="--", color="black")
 
-
-run_sfh()
+if __name__ == "__main__":
+    run()
