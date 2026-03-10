@@ -1,6 +1,7 @@
 import pandas as pd
 from pylpg import lpg_execution, lpgdata
 import numpy as np
+from pathlib import Path
 
 
 def get_all_household_types():
@@ -17,6 +18,9 @@ PROFILE_COL = "n_profiles_new"
 SIM_YEAR = 2022
 STARTDATE = "2022-01-01"
 ENDDATE = "2022-12-31"
+
+OUTPUT_DIR = Path("generated_profiles")
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 
 def get_household_by_name(name: str):
@@ -45,7 +49,7 @@ def run():
     for householddata_name in mapping[mapping[PROFILE_COL] > 0].index:
         print(householddata_name)
 
-        for n_profile in range(mapping.loc[householddata_name, [PROFILE_COL]]):
+        for n_profile in range(mapping.loc[householddata_name, PROFILE_COL]):
             random_seed = np.random.randint(0, 100000)
             df = lpg_execution.execute_lpg_single_household(
                 SIM_YEAR,
@@ -73,7 +77,7 @@ def run():
             results[householddata_name + "_mfh_seed_" + str(random_seed)] = df["Electricity_HH1"].resample(
                 "15min").sum()
 
-    results.to_csv("resulting_profiles_all.csv")
+    results.to_csv(OUTPUT_DIR / "resulting_profiles_all.csv")
 
     return results
 
@@ -95,8 +99,8 @@ def run_sfh():
                 enddate=ENDDATE
             )
             # results[householddata_name + "_sfh_seed_" + str(random_seed)] = df["Electricity_HH1"].resample("15min").sum()
-            df["Electricity_HH1"].resample("15min").sum().to_csv(
-                f"resulting_profiles_{householddata_name}_sfh_seed_{str(random_seed)}_all.csv")
+            outfile = OUTPUT_DIR / f"resulting_profiles_{householddata_name}_sfh_seed_{random_seed}_all.csv"
+            df["Electricity_HH1"].resample("15min").sum().to_csv(outfile)
 
     # results.to_csv("resulting_profiles_sfh_all.csv")
 
@@ -120,8 +124,8 @@ def run_mfh():
                 enddate=ENDDATE
             )
             # results[householddata_name + "_mfh_seed_" + str(random_seed)] = df["Electricity_HH1"].resample("15min").sum()
-            df["Electricity_HH1"].resample("15min").sum().to_csv(
-                f"resulting_profiles_{householddata_name}_mfh_seed_{str(random_seed)}_all.csv")
+            outfile = OUTPUT_DIR / f"resulting_profiles_{householddata_name}_mfh_seed_{random_seed}_all.csv"
+            df["Electricity_HH1"].resample("15min").sum().to_csv(outfile)
 
     # results.to_csv("resulting_profiles_mfh_all.csv")
 
