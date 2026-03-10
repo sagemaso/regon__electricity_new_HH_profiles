@@ -63,7 +63,7 @@ def run():
             results[householddata_name + "_sfh_seed_" + str(random_seed)] = df["Electricity_HH1"].resample(
                 "15min").sum()
 
-        for n_profile in range(mapping.loc[householddata_name, [PROFILE_COL]]):
+        for n_profile in range(mapping.loc[householddata_name, PROFILE_COL]):
             random_seed = np.random.randint(0, 100000)
             df = lpg_execution.execute_lpg_single_household(
                 SIM_YEAR,
@@ -112,7 +112,7 @@ def run_mfh():
     for householddata_name in mapping[mapping[PROFILE_COL] > 0].index:
         print(householddata_name)
 
-        for n_profile in range(mapping.loc[householddata_name, [PROFILE_COL]]):
+        for n_profile in range(mapping.loc[householddata_name, PROFILE_COL]):
             random_seed = np.random.randint(0, 100000)
             df = lpg_execution.execute_lpg_single_household(
                 SIM_YEAR,
