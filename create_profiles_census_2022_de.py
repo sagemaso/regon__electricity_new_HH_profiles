@@ -45,7 +45,9 @@ def get_household_by_name(name: str):
 
 
 def run():
-    results = pd.DataFrame()
+    results_dir = OUTPUT_DIR / "new_results"
+    results_dir.mkdir(exist_ok=True)
+
     for householddata_name in mapping[mapping[PROFILE_COL] > 0].index:
         print(householddata_name)
 
@@ -60,8 +62,9 @@ def run():
                 startdate=STARTDATE,
                 enddate=ENDDATE
             )
-            results[householddata_name + "_sfh_seed_" + str(random_seed)] = df["Electricity_HH1"].resample(
-                "15min").sum()
+            profile = df["Electricity_HH1"].resample("15min").sum()
+            outfile = results_dir / f"resulting_profiles_{householddata_name}_sfh_seed_{random_seed}.csv"
+            profile.to_csv(outfile)
 
         for n_profile in range(mapping.loc[householddata_name, PROFILE_COL]):
             random_seed = np.random.randint(0, 100000)
@@ -74,12 +77,9 @@ def run():
                 startdate=STARTDATE,
                 enddate=ENDDATE
             )
-            results[householddata_name + "_mfh_seed_" + str(random_seed)] = df["Electricity_HH1"].resample(
-                "15min").sum()
-
-    results.to_csv(OUTPUT_DIR / "resulting_profiles_all.csv")
-
-    return results
+            profile = df["Electricity_HH1"].resample("15min").sum()
+            outfile = results_dir / f"resulting_profiles_{householddata_name}_mfh_seed_{random_seed}.csv"
+            profile.to_csv(outfile)
 
 
 def run_sfh():
