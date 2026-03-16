@@ -23,6 +23,23 @@ OUTPUT_DIR = Path("generated_profiles")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
+def count_existing_profiles(results_dir: Path, household_name: str, house_type: str) -> int:
+    """
+    Count how many profiles already exist for a given household type and house type.
+
+    Args:
+        results_dir: Directory containing the profile CSVs
+        household_name: Name of the household type (e.g., 'CHR52 Student Flatsharing')
+        house_type: Either 'sfh' or 'mfh'
+
+    Returns:
+        Number of existing profiles
+    """
+    pattern = f"resulting_profiles_{household_name}_{house_type}_seed_*.csv"
+    existing_files = list(results_dir.glob(pattern))
+    return len(existing_files)
+
+
 def get_household_by_name(name: str):
     """
     Return the household object from lpgdata.Households by its name.
@@ -49,9 +66,17 @@ def run():
     results_dir.mkdir(exist_ok=True)
 
     for householddata_name in mapping[mapping[PROFILE_COL] > 0].index:
-        print(householddata_name)
+        target_count = mapping.loc[householddata_name, PROFILE_COL]
 
-        for n_profile in range(mapping.loc[householddata_name, PROFILE_COL]):
+        # Count existing SFH profiles and generate only remaining
+        existing_sfh = count_existing_profiles(results_dir, householddata_name, "sfh")
+        remaining_sfh = max(0, target_count - existing_sfh)
+        if remaining_sfh > 0:
+            print(f"{householddata_name} SFH: {existing_sfh} exist, generating {remaining_sfh} more")
+        else:
+            print(f"{householddata_name} SFH: complete ({existing_sfh}/{target_count})")
+
+        for n_profile in range(remaining_sfh):
             random_seed = np.random.randint(0, 100000)
             df = lpg_execution.execute_lpg_single_household(
                 SIM_YEAR,
@@ -66,7 +91,15 @@ def run():
             outfile = results_dir / f"resulting_profiles_{householddata_name}_sfh_seed_{random_seed}.csv"
             profile.to_csv(outfile)
 
-        for n_profile in range(mapping.loc[householddata_name, PROFILE_COL]):
+        # Count existing MFH profiles and generate only remaining
+        existing_mfh = count_existing_profiles(results_dir, householddata_name, "mfh")
+        remaining_mfh = max(0, target_count - existing_mfh)
+        if remaining_mfh > 0:
+            print(f"{householddata_name} MFH: {existing_mfh} exist, generating {remaining_mfh} more")
+        else:
+            print(f"{householddata_name} MFH: complete ({existing_mfh}/{target_count})")
+
+        for n_profile in range(remaining_mfh):
             random_seed = np.random.randint(0, 100000)
             df = lpg_execution.execute_lpg_single_household(
                 SIM_YEAR,
