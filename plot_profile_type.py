@@ -54,9 +54,13 @@ def plot_profiles(input_dir: str):
 
     if not profiles:
         print("No CHR## profile types found in filenames. Processing all files together.")
-        daily_profile = load_and_aggregate(all_files)
-        output_file = output_dir / "all_profiles_aggregated.png"
-        plot_daily_profile(daily_profile, "All Profiles", len(all_files), output_file)
+        daily_profile_mean = load_and_aggregate(all_files, agg_func='mean')
+        output_file = output_dir / "all_profiles_average.png"
+        plot_daily_profile(daily_profile_mean, "All Profiles", len(all_files), output_file, agg_type='mean')
+
+        daily_profile_sum = load_and_aggregate(all_files, agg_func='sum')
+        output_file = output_dir / "all_profiles_accumulated.png"
+        plot_daily_profile(daily_profile_sum, "All Profiles", len(all_files), output_file, agg_type='sum')
         return
 
     print(f"Found {len(profiles)} profile types: {', '.join(sorted(profiles.keys()))}")
@@ -64,19 +68,41 @@ def plot_profiles(input_dir: str):
     # Process each profile type
     for profile_type in sorted(profiles.keys(), key=lambda x: int(x[3:])):
         files = profiles[profile_type]
+        title = get_profile_description(profile_type, files)
         print(f"\nProcessing {profile_type} ({len(files)} files)...")
 
-        daily_profile = load_and_aggregate(files)
-        title = get_profile_description(profile_type, files)
-        output_file = output_dir / f"{profile_type}_aggregated.png"
+        # Average plot
+        daily_profile_mean = load_and_aggregate(files, agg_func='mean')
+        output_file = output_dir / f"{profile_type}_average.png"
+        plot_daily_profile(daily_profile_mean, title, len(files), output_file, agg_type='mean')
 
-        plot_daily_profile(daily_profile, title, len(files), output_file)
+        # Summed plot
+        daily_profile_sum = load_and_aggregate(files, agg_func='sum')
+        output_file = output_dir / f"{profile_type}_accumulated.png"
+        plot_daily_profile(daily_profile_sum, title, len(files), output_file, agg_type='sum')
 
-    # Also create an aggregated plot of all files
-    print(f"\nCreating combined plot for all {len(all_files)} files...")
-    daily_profile = load_and_aggregate(all_files)
-    output_file = output_dir / "all_profiles_aggregated.png"
-    plot_daily_profile(daily_profile, "All Profile Types", len(all_files), output_file)
+    # Also create combined plots for all files
+    print(f"\nCreating combined plots for all {len(all_files)} files...")
+
+    daily_profile_mean = load_and_aggregate(all_files, agg_func='mean')
+    output_file = output_dir / "all_profiles_average.png"
+    plot_daily_profile(daily_profile_mean, "All Profile Types", len(all_files), output_file, agg_type='mean')
+
+    daily_profile_sum = load_and_aggregate(all_files, agg_func='sum')
+    output_file = output_dir / "all_profiles_accumulated.png"
+    plot_daily_profile(daily_profile_sum, "All Profile Types", len(all_files), output_file, agg_type='sum')
+
+    # Create seasonal plots (winter and summer)
+    for season in ['winter', 'summer']:
+        print(f"\nCreating {season} plots for all {len(all_files)} files...")
+
+        daily_profile_mean = load_and_aggregate(all_files, agg_func='mean', season=season)
+        output_file = output_dir / f"all_profiles_average_{season}.png"
+        plot_daily_profile(daily_profile_mean, "All Profile Types", len(all_files), output_file, agg_type='mean', season=season)
+
+        daily_profile_sum = load_and_aggregate(all_files, agg_func='sum', season=season)
+        output_file = output_dir / f"all_profiles_accumulated_{season}.png"
+        plot_daily_profile(daily_profile_sum, "All Profile Types", len(all_files), output_file, agg_type='sum', season=season)
 
     print(f"\nDone! All plots saved to: {output_dir}")
 
@@ -94,8 +120,14 @@ def get_profile_description(profile_type: str, files: list[Path]) -> str:
     return profile_type
 
 
-def load_and_aggregate(files: list[Path]) -> pd.DataFrame:
-    """Load all CSV files and aggregate into one daily profile."""
+def load_and_aggregate(files: list[Path], agg_func: str = 'mean', season: str = None) -> pd.DataFrame:
+    """Load all CSV files and aggregate into one daily profile.
+
+    Args:
+        files: List of CSV file paths
+        agg_func: Aggregation function - 'mean' for average, 'sum' for accumulated
+        season: Optional season filter - 'winter' (Dec, Jan, Feb) or 'summer' (Jun, Jul, Aug)
+    """
     all_data = []
 
     for i, filepath in enumerate(files):
@@ -106,13 +138,29 @@ def load_and_aggregate(files: list[Path]) -> pd.DataFrame:
         all_data.append(df)
 
     combined = pd.concat(all_data, ignore_index=False)
-    daily_profile = combined.groupby('time_of_day').mean()
+
+    # Filter by season if specified
+    if season == 'winter':
+        combined = combined[combined.index.month.isin([12, 1, 2])]
+    elif season == 'summer':
+        combined = combined[combined.index.month.isin([6, 7, 8])]
+
+    if agg_func == 'sum':
+        daily_profile = combined.groupby('time_of_day').sum()
+    else:
+        daily_profile = combined.groupby('time_of_day').mean()
 
     return daily_profile
 
 
-def plot_daily_profile(daily_profile: pd.DataFrame, title: str, num_files: int, output_file: Path):
-    """Plot the accumulated daily profile."""
+def plot_daily_profile(daily_profile: pd.DataFrame, title: str, num_files: int,
+                       output_file: Path, agg_type: str = 'mean', season: str = None):
+    """Plot the daily profile.
+
+    Args:
+        agg_type: 'mean' for averaged plot, 'sum' for accumulated plot
+        season: Optional season label for the title
+    """
     plt.close('all')
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -123,8 +171,15 @@ def plot_daily_profile(daily_profile: pd.DataFrame, title: str, num_files: int, 
         ax.plot(hours, daily_profile[col], label=col, linewidth=1.5)
 
     ax.set_xlabel('Time of Day (hours)', fontsize=12)
-    ax.set_ylabel('Average Electricity Consumption (kW)', fontsize=12)
-    ax.set_title(f'Accumulated Daily Profile (averaged over {num_files} files)\n{title}', fontsize=14)
+
+    season_str = f" - {season.capitalize()}" if season else ""
+    if agg_type == 'sum':
+        ax.set_ylabel('Total Electricity Consumption (kWh)', fontsize=12)
+        ax.set_title(f'Accumulated Daily Profile{season_str} (summed over {num_files} files)\n{title}', fontsize=14)
+    else:
+        ax.set_ylabel('Average Electricity Consumption (kW)', fontsize=12)
+        ax.set_title(f'Daily Profile{season_str} (averaged over {num_files} files)\n{title}', fontsize=14)
+
     ax.set_xlim(0, 24)
     ax.set_xticks(range(0, 25, 2))
     ax.grid(True, alpha=0.3)
